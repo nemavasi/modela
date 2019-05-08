@@ -1,0 +1,166 @@
+MODULE Init;
+
+IMPORT Log, Math, JS, D := Draw;
+
+VAR hiddenNumber : ARRAY 4 OF CHAR;
+    tryCount : INTEGER;      (* число попыток *) 
+    bullsCount, cowsCount: INTEGER;
+    guess : ARRAY 4 OF CHAR; (* число, введенное пользователем *)  
+
+(* генерация случайного четырехзначного числа *)
+PROCEDURE Guess;
+VAR i, k : INTEGER; charExists : BOOLEAN; 
+BEGIN 
+  (* получаем первый сивол числа по таблице ASCII - он не должен быть 0 *)
+  hiddenNumber[0] := CHR(49 + FLOOR(Math.Rnd()*9.0)); 
+  (* заполняем остальные цифры - они не должны повторяться *)  
+  FOR i := 1 TO 3 DO
+    REPEAT   
+      charExists := FALSE;
+      hiddenNumber[i] := CHR(48 + FLOOR(Math.Rnd()*10.0));
+      FOR k := 0 TO i-1 DO
+        IF hiddenNumber[k] = hiddenNumber[i] THEN  
+          charExists := TRUE
+        END
+      END 
+    UNTIL ~charExists
+  END 
+END Guess;
+
+PROCEDURE Check(num : ARRAY OF CHAR) : BOOLEAN;
+VAR
+  i, k, l : INTEGER;
+  result : BOOLEAN;
+BEGIN  
+  result := TRUE;  
+  l := LEN(num); 
+  IF l = 4 THEN     
+    IF num[0] = "0" THEN  
+      result := FALSE; 
+    ELSE
+      (* Проверка допустимых символов *)
+      FOR i := 0 TO l-1 DO
+        IF (ORD(num[i]) < 48) OR (ORD(num[i]) > 57) THEN   
+          result := FALSE;         
+        END
+      END;   
+      (* Проверка неповторяемости символов *)
+      FOR i := 1 TO l-1 DO
+        k := 0;
+        WHILE result & (k < i) DO    
+          IF num[i] = num[k] THEN   
+            result := FALSE;         
+          END;
+          k := k + 1;
+        END;
+      END;   
+    END   
+  ELSE 
+     result := FALSE; 
+  END; 
+  RETURN result
+END Check;
+
+  
+PROCEDURE CalcBullsAndCows(num : ARRAY OF CHAR ; VAR bullsCount, cowsCount : INTEGER);
+VAR
+  i, k : INTEGER;
+BEGIN
+  bullsCount := 0;
+  cowsCount := 0;
+  (* цикл по цифрам загаданного числа *)
+  FOR i := 0 TO 3 DO 
+    (* цикл по цифрам введенного числа *)
+    FOR k := 0 TO 3 DO
+      IF hiddenNumber[i] = num[k]  THEN
+        IF i = k THEN     
+          bullsCount := bullsCount + 1;
+        ELSE 
+          cowsCount := cowsCount + 1;
+        END;
+      END;   
+    END;
+  END; 
+END CalcBullsAndCows; 
+
+PROCEDURE Ask(VAR arg: ARRAY OF CHAR);
+ VAR 
+  value: ARRAY 1000 OF CHAR;
+  i, l : INTEGER;
+  repeatAgain : BOOLEAN;
+BEGIN 
+  REPEAT     
+    repeatAgain := FALSE;  
+    JS.do( "result = prompt('Введите четырехзначное натуральное число из четырех неповторяющихся цифр:', '?'); value = result;" );      
+    repeatAgain := ~Check(value);
+    IF ~repeatAgain THEN           
+      FOR i := 0 TO LEN(value)-1 DO         
+        arg[i] := value[i]        
+      END  
+    END 
+  UNTIL ~repeatAgain;
+END Ask;
+
+PROCEDURE InitData;
+BEGIN
+  Guess;
+  Log.Clear; 
+  (*
+  Log.String("hiddenNumber := ");
+  Log.String(hiddenNumber); Log.Ln; 
+  *) 
+  tryCount := 7;
+  bullsCount := 0;
+  cowsCount := 0;   
+END InitData;
+
+PROCEDURE Setup;
+BEGIN
+  InitData;  
+  D.SetSize(130, 45); 
+  D.SetBackground(255H);
+  D.RectRounded(2.0, 2.0, 125.0, 40.0, 5.0);
+  D.Fill(0H); 
+END Setup;
+
+PROCEDURE Draw;
+BEGIN
+  D.SetFont("Arial");
+  D.String("Попытаться", 10.0, 30.0, 20); 
+END Draw;
+
+PROCEDURE Pressed; 
+BEGIN
+  IF (tryCount > 0 ) THEN
+    IF  (bullsCount < 4) THEN 
+      Ask(guess);
+      CalcBullsAndCows(guess, bullsCount, cowsCount); 
+      Log.String(guess);
+      Log.String(", быков: ");
+      Log.Int(bullsCount);
+      Log.String(", коров: ");
+      Log.Int(cowsCount);  
+      Log.Ln;
+      tryCount := tryCount - 1;   
+      IF bullsCount = 4 THEN
+        Log.String("Вы выиграли!");    
+      END   
+    END
+  ELSE    
+     Log.String("Вы проиграли"); Log.Ln;
+     Log.String("Правильный ответ: "); Log.String(hiddenNumber); Log.Ln;
+  END;
+END Pressed;
+
+PROCEDURE Do*;  
+BEGIN   
+  D.CreateCanvas("canvas"); 
+  D.SetSetupProc(Setup);
+  D.SetDrawProc(Draw);
+  D.SetPressedProc(Pressed);
+  D.Start; 
+END Do;
+
+BEGIN
+ Do
+END Init.
