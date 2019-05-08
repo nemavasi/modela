@@ -1,0 +1,460 @@
+MODULE Init;
+
+IMPORT Log, D := Draw, JS, Strings, Math;
+
+CONST 
+ 
+  dBtn = 10.0; (* расстояние между кнопками *) 
+  width = 401; height = 401; (* размеры холста *)
+  greenColor = 0FFCCFFAAH;
+  
+  productsCount = 3; (* размер номенклатуры изделий *)
+
+  (* коды вьюх *)
+  viewTurnCode = productsCount;
+  viewTotalCode = productsCount + 1;
+  viewProductACode = 0;
+  viewProductBCode = 1;
+  viewProductCCode = 2;
+
+  maxTotalPlanTime = 480; (* минут за смену *)
+  maxTurn = 100; (* максимальное количество смен за игру *)
+  
+  (* все единицы измерения времени в минутах *)
+TYPE 
+  AnyRec = RECORD END;
+  Node = POINTER TO RECORD 
+    rec    : POINTER TO AnyRec; 
+    next   : Node
+  END;
+   
+  Product = POINTER TO RECORD (AnyRec)     
+    name             : ARRAY 100 OF CHAR;
+    workTime         : INTEGER; (* время обработки единицы изделия *)
+    changeoverTime   : INTEGER; (* время перенастройки на это изделие *)
+    plan             : INTEGER; (* количество изделий, которое надо произвести за смену *)
+    stock            : INTEGER; (* количество изделий на складе на начало смены *)
+    order            : INTEGER; (* количество изделий на сегодня, которые заберут сегодня со склада - должно быть на складе на начало смены*)
+    meanOrder        : INTEGER; (* средний заказ, шт *)
+    amplitudeOrder   : INTEGER; (* размер колебания заказа *)
+    listeners        : Node     (* список вьюшек для уведомления *) 
+  END;
+  View = POINTER TO RECORD (AnyRec)  
+    x, y             : REAL; (* левый верхний угол *)
+    height, width    : REAL;  (* высота и ширина вьюшки *)       
+    label            : ARRAY 100 OF CHAR;
+    bgColor          : INTEGER;
+    txtColor         : INTEGER;
+    overBgColor      : INTEGER;   (* цвет когда под указателем мыши *)
+    ClickProc        : PROCEDURE;
+    UpdateProc       : PROCEDURE (view : View);  (* процедура апдейта вьюхи *)
+    model            : Product
+  END;
+
+VAR 
+  products : ARRAY productsCount OF Product;
+  views : ARRAY (productsCount + 2) OF View;
+  totalPlanTime : INTEGER; (* всего необходимо минут на плановое количество *)
+  nTurn  : INTEGER; (* номер хода *)
+  viewsForUpdate : Node;  (* список вьюх. которые надо обновить перед отрисовкой *)
+ 
+
+PROCEDURE CalcTotalTime;
+VAR i : INTEGER;
+BEGIN
+  totalPlanTime := 0;
+  FOR i := 0 TO LEN(products)-1 DO 
+    totalPlanTime := totalPlanTime + products[i].plan * products[i].workTime;
+    IF products[i].plan > 0 THEN
+      totalPlanTime := totalPlanTime + products[i].changeoverTime;
+    END;
+  END; 
+END CalcTotalTime; 
+
+PROCEDURE GetOrders;
+VAR i : INTEGER;
+BEGIN 
+  FOR i := 0 TO LEN(products)-1 DO    
+    products[i].order := FLOOR(FLT(products[i].amplitudeOrder) * Math.Rnd());     
+    IF products[i].order < 0 THEN 
+      products[i].order := 0;
+    END;
+  END; 
+END GetOrders;
+
+PROCEDURE SendOrdersToConsumers;
+VAR i : INTEGER;
+BEGIN 
+  FOR i := 0 TO LEN(products)-1 DO    
+    products[i].stock := products[i].stock - products[i].order;    
+  END; 
+END SendOrdersToConsumers;
+
+PROCEDURE InitData*;
+BEGIN
+  nTurn := 0;
+  NEW(products[0]);
+  products[0].name := "A"; 
+  products[0].workTime := 1; 
+  products[0].changeoverTime := 60; 
+  products[0].plan := 0; 
+  products[0].stock := 24;
+  products[0].meanOrder := 30;
+  products[0].amplitudeOrder := 20;
+  
+  NEW(products[1]);
+  products[1].name := "B"; 
+  products[1].workTime := 3; 
+  products[1].changeoverTime := 60; 
+  products[1].plan := 0; 
+  products[1].stock := 19;
+  products[1].meanOrder := 30;
+  products[1].amplitudeOrder := 40;
+ 
+ 
+  NEW(products[2]);
+  products[2].name := "C";
+  products[2].workTime := 2; 
+  products[2].changeoverTime := 60; 
+  products[2].plan := 0; 
+  products[2].stock := 11;   
+  products[2].meanOrder := 50;
+  products[2].amplitudeOrder := 10;
+  
+  
+  CalcTotalTime;
+ 
+END InitData;
+
+PROCEDURE Check(num : ARRAY OF CHAR) : BOOLEAN;
+VAR
+  i, k, l : INTEGER;
+  result : BOOLEAN;
+BEGIN  
+  result := TRUE;  
+  l := LEN(num); 
+  IF l < 4 THEN 
+    (* Проверка допустимых символов *)
+    FOR i := 0 TO l-1 DO
+      IF (ORD(num[i]) < 48) OR (ORD(num[i]) > 57) THEN   
+        result := FALSE;         
+      END
+    END;     
+  ELSE 
+     result := FALSE; 
+  END; 
+  RETURN result
+END Check;
+
+PROCEDURE Ask(VAR arg: ARRAY OF CHAR);
+ VAR 
+  value: ARRAY 1000 OF CHAR;
+  i, l : INTEGER;
+  repeatAgain : BOOLEAN;
+BEGIN 
+  REPEAT     
+    repeatAgain := FALSE;  
+    JS.do( "result = prompt('Планируемое кол-во за смену: ', '?'); value = result;" );      
+    repeatAgain := ~Check(value);
+    IF ~repeatAgain THEN           
+      FOR i := 0 TO LEN(value)-1 DO         
+        arg[i] := value[i]        
+      END  
+    END 
+  UNTIL ~repeatAgain;
+END Ask;
+
+PROCEDURE IsWrongTotalPlanTime() : BOOLEAN;
+VAR result : BOOLEAN;
+BEGIN
+  IF totalPlanTime > maxTotalPlanTime THEN
+    result := TRUE
+  ELSE
+    result := FALSE
+  END;
+  RETURN result
+END IsWrongTotalPlanTime; 
+ 
+PROCEDURE Turn;
+BEGIN  
+  IF nTurn >= maxTurn THEN 
+    JS.do("alert('Вы выиграли')"); 
+  ELSIF IsWrongTotalPlanTime() THEN  
+    JS.do("alert('Плановое время не может превысить 480 минут!')"); 
+  ELSE
+    GetOrders; 
+    SendOrdersToConsumers;
+    nTurn := nTurn + 1;  
+  END;  
+END Turn;
+
+PROCEDURE IsOverView(view : View) : BOOLEAN;
+BEGIN
+  RETURN D.focus & (D.mouseX > view.x) & (D.mouseX < view.x + view.width) & (D.mouseY > view.y) & (D.mouseY < view.y + view.height)
+END IsOverView;
+
+PROCEDURE UpdateTotalTimeLabel*(VAR label : ARRAY OF CHAR);
+VAR str, strInt : ARRAY 100 OF CHAR; i : INTEGER;
+BEGIN
+  str := "Итого (мин.):       ";
+  strInt := "";
+  Strings.IntToString(totalPlanTime, strInt); 
+  Strings.Join(str, strInt);
+  FOR i := 0 TO LEN(str)-1 DO  
+    label[i] := str[i];
+  END; 
+END UpdateTotalTimeLabel;
+
+PROCEDURE UpdateProductLabel*(VAR label : ARRAY OF CHAR; p : Product);
+VAR str, strInt : ARRAY 100 OF CHAR; i : INTEGER;
+BEGIN  
+  str := "по "; 
+  Strings.Join(str, p.name);  
+  Strings.Join(str, ": ");
+  strInt := "";
+  Strings.IntToString(p.plan, strInt); 
+  Strings.Join(str, " ");
+  Strings.Join(str, strInt);
+  Strings.Join(str, " шт., (склад: ");
+  Strings.IntToString(p.stock, strInt);
+  Strings.Join(str, strInt);
+  Strings.Join(str, " шт.)"); 
+  
+  FOR i := 0 TO LEN(str)-1 DO 
+    label[i] := str[i];
+  END; 
+  
+END UpdateProductLabel;
+
+PROCEDURE UpdateProductView (view : View);
+VAR str : ARRAY 100 OF CHAR;
+BEGIN    
+  UpdateProductLabel(str, view.model);  
+  view.label := str;
+  CalcTotalTime;
+  UpdateTotalTimeLabel(views[viewTotalCode].label);
+  
+END UpdateProductView; 
+
+PROCEDURE AddViewForUpdate(view : View);
+VAR node : Node;
+BEGIN    
+  NEW(node);
+  node.rec := view;
+  IF viewsForUpdate = NIL THEN
+    viewsForUpdate := node;
+  ELSE    
+    node.next := viewsForUpdate;
+    viewsForUpdate := node;
+  END
+END AddViewForUpdate; 
+
+PROCEDURE InputProductCount;
+VAR i, k, cnt, code : INTEGER; str, strInt : ARRAY 100 OF CHAR; v : ARRAY 3 OF CHAR; node : Node;
+BEGIN     
+  FOR i := 0 TO LEN(views) - 1 DO
+    IF (views[i].ClickProc # NIL) & IsOverView(views[i]) THEN
+      IF i < LEN(products) THEN 
+        Ask(v); 
+        cnt := 0;
+        k := 0;
+        WHILE (k <= LEN(v)-1) & (ORD(v[k]) # 0) DO
+          cnt := cnt * 10 + ORD(v[k]) - ORD("0");         
+          k := k + 1;          
+        END;
+        products[i].plan := cnt;
+        
+        (* добавляем в список обновлений *)
+        node := products[i].listeners;
+        WHILE node # NIL DO            
+          AddViewForUpdate(node.rec(View));  
+          node := node.next;
+        END;        
+
+      END; 
+    END;
+  END;  
+END InputProductCount;
+
+
+PROCEDURE InitViews*;
+VAR
+  node : Node;
+  i : INTEGER;
+BEGIN
+  (* Всего минут *)
+  NEW(views[viewTotalCode]);
+  views[viewTotalCode].x := 1.0; 
+  views[viewTotalCode].height := 24.0; 
+  views[viewTotalCode].y := FLT(height) - views[viewTotalCode].height - 1.0; 
+  views[viewTotalCode].width := 240.0;
+  UpdateTotalTimeLabel(views[viewTotalCode].label);  
+  views[viewTotalCode].bgColor := 255H; 
+  views[viewTotalCode].txtColor := 0H; 
+  views[viewTotalCode].overBgColor := 255H; 
+  (* добавляем как слушатель *)
+  FOR i := 0 TO LEN(products) - 1 DO
+    NEW(node);
+    node.rec := views[viewTotalCode];  
+    products[i].listeners := node;     
+  END;  
+ 
+  (* кнопка старт *)
+  NEW(views[viewTurnCode]);
+  views[viewTurnCode].x := 1.0 + views[viewTotalCode].width + dBtn; 
+  views[viewTurnCode].height := 24.0; 
+  views[viewTurnCode].y := FLT(height) - views[viewTurnCode].height - 1.0; 
+  views[viewTurnCode].width := 100.0;
+  views[viewTurnCode].label := "Работать";
+  views[viewTurnCode].bgColor := 255H; 
+  views[viewTurnCode].txtColor := 0H; 
+  views[viewTurnCode].overBgColor := greenColor;
+  views[viewTurnCode].ClickProc := Turn;
+  (* Продукт A *) 
+  NEW(views[viewProductACode]);
+  views[viewProductACode].x := 1.0; 
+  views[viewProductACode].height := 24.0; 
+  views[viewProductACode].y := FLT(height) - 2.0*views[viewProductACode].height - 1.0 - dBtn; 
+  views[viewProductACode].width := views[viewTotalCode].width; 
+  UpdateProductLabel(views[viewProductACode].label, products[viewProductACode]);  
+  views[viewProductACode].bgColor := 255H; 
+  views[viewProductACode].txtColor := 0H; 
+  views[viewProductACode].overBgColor := greenColor;
+  views[viewProductACode].ClickProc := InputProductCount; 
+  views[viewProductACode].UpdateProc := UpdateProductView;
+  views[viewProductACode].model := products[viewProductACode];  
+  (* добавляем как слушатель *)
+  NEW(node);
+  node.rec := views[viewProductACode];
+  products[0].listeners.next := node; 
+  
+  
+  (* Продукт B *) 
+  NEW(views[viewProductBCode]);
+  views[viewProductBCode].x := 1.0; 
+  views[viewProductBCode].height := 24.0; 
+  views[viewProductBCode].y := FLT(height) - 3.0*views[viewProductBCode].height - 1.0 - 2.0*dBtn; 
+  views[viewProductBCode].width := views[viewTotalCode].width; 
+  UpdateProductLabel(views[viewProductBCode].label, products[viewProductBCode]);  
+  views[viewProductBCode].bgColor := 255H; 
+  views[viewProductBCode].txtColor := 0H; 
+  views[viewProductBCode].overBgColor := greenColor;
+  views[viewProductBCode].ClickProc := InputProductCount; 
+  views[viewProductBCode].UpdateProc := UpdateProductView;
+  views[viewProductBCode].model := products[viewProductBCode]; 
+  (* добавляем как слушатель *)
+  NEW(node);
+  node.rec := views[viewProductBCode];
+  products[1].listeners.next := node; 
+ 
+  (* Продукт C *) 
+  NEW(views[viewProductCCode]);
+  views[viewProductCCode].x := 1.0; 
+  views[viewProductCCode].height := 24.0; 
+  views[viewProductCCode].y := FLT(height) - 4.0*views[viewProductBCode].height - 1.0 - 3.0*dBtn; 
+  views[viewProductCCode].width := views[viewTotalCode].width; 
+  UpdateProductLabel(views[viewProductCCode].label, products[viewProductCCode]);  
+  views[viewProductCCode].bgColor := 255H; 
+  views[viewProductCCode].txtColor := 0H; 
+  views[viewProductCCode].overBgColor := greenColor;
+  views[viewProductCCode].ClickProc := InputProductCount; 
+  views[viewProductCCode].UpdateProc := UpdateProductView;
+   views[viewProductCCode].model := products[viewProductCCode]; 
+  (* добавляем как слушатель *)
+  NEW(node);
+  node.rec := views[viewProductCCode];
+  products[2].listeners.next := node;    
+ 
+END InitViews;
+
+PROCEDURE Setup*;
+BEGIN
+  InitData;
+  InitViews;  
+  D.SetSize(width, height);
+  D.SetFrameRate(20);
+END Setup;
+
+PROCEDURE DrawView (view : View); (* рисуем вьюху*)
+BEGIN
+  D.Fill(view.bgColor);
+  IF IsOverView(view) THEN D.Fill(view.overBgColor) ELSE D.NoFill END;
+  D.StrokeWidth(1);
+  D.RectRounded(view.x, view.y, view.width, view.height, 3.0);
+  D.Fill(view.txtColor);   
+END DrawView; 
+
+PROCEDURE DrawTextView (view : View); (* рисуем текстовую вьюху*)
+BEGIN
+  DrawView(view);
+  D.Stringi(view.label, FLOOR(view.x) + 17, FLOOR(view.y + view.height) - 6, 16);  
+END DrawTextView; 
+
+PROCEDURE Plot;
+  VAR i: INTEGER; node : Node; v: View;
+BEGIN  
+  (* сначала апдейтим все вьюхи которые нужно обновить так как изменились данные в моделях *)
+  
+  WHILE viewsForUpdate # NIL DO  
+   node := viewsForUpdate;  
+   v := node.rec(View);
+   IF v.UpdateProc # NIL THEN 
+     v.UpdateProc(v);
+   END;   
+    viewsForUpdate := viewsForUpdate.next;
+  END;    
+  D.SetBackground(255H); 
+  FOR i := 0 TO LEN(views) - 1 DO
+    DrawTextView(views[i]);
+  END;
+END Plot;
+
+PROCEDURE Released;
+VAR i : INTEGER;
+BEGIN
+  FOR i := 0 TO LEN(views) - 1 DO
+    IF (views[i].ClickProc # NIL) & IsOverView(views[i]) THEN
+      views[i].ClickProc();
+    END;
+  END;  
+END Released;
+
+BEGIN
+  (* инициализация графики *)
+  D.CreateCanvas("canvas");  
+  D.SetSetupProc(Setup);
+  D.SetDrawProc(Plot);
+  D.SetReleasedProc(Released);  
+  D.Start; 
+END Init.
+(* todo 
+  - не обновляются данные после хода - переделать на слушателей
+  - подсветка Итого
+  - сохранение истории ходов
+  - кнопка Turn
+  - вложенные вьюхи
+  - каждая вьюха сама знает как себя рисовать
+  - графики изменения запасов
+  - ссылки вьюх на модели 
+  - убрать коды моделей - связь только по полям вьюх
+
+    НА ПОТОМ
+  - евенты + сами события
+  - уровень сложности
+*)
+(*
+    Copyright (C) 2019  Dmitry Shalygin
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*)
