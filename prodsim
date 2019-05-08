@@ -218,8 +218,7 @@ BEGIN
   Strings.Join(str, " шт., (склад: ");
   Strings.IntToString(p.stock, strInt);
   Strings.Join(str, strInt);
-  Strings.Join(str, " шт.)"); 
-  
+  Strings.Join(str, " шт.)");   
   FOR i := 0 TO LEN(str)-1 DO 
     label[i] := str[i];
   END; 
@@ -230,11 +229,15 @@ PROCEDURE UpdateProductView (view : View);
 VAR str : ARRAY 100 OF CHAR;
 BEGIN    
   UpdateProductLabel(str, view.model);  
-  view.label := str;
-  CalcTotalTime;
-  UpdateTotalTimeLabel(views[viewTotalCode].label);
-  
+  view.label := str;  
 END UpdateProductView; 
+
+PROCEDURE UpdateTotalView (view : View);
+VAR str : ARRAY 100 OF CHAR;
+BEGIN    
+  CalcTotalTime;
+  UpdateTotalTimeLabel(views[viewTotalCode].label);  
+END UpdateTotalView; 
 
 PROCEDURE AddViewForUpdate(view : View);
 VAR node : Node;
@@ -292,6 +295,8 @@ BEGIN
   views[viewTotalCode].bgColor := 255H; 
   views[viewTotalCode].txtColor := 0H; 
   views[viewTotalCode].overBgColor := 255H; 
+  views[viewTotalCode].UpdateProc := UpdateTotalView;
+ 
   (* добавляем как слушатель *)
   FOR i := 0 TO LEN(products) - 1 DO
     NEW(node);
