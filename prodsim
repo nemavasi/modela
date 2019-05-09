@@ -186,28 +186,47 @@ BEGIN
     node.next := viewsForUpdate;
     viewsForUpdate := node;
   END
-END AddViewForUpdate; 
+END AddViewForUpdate;
+
+PROCEDURE IsGameOver() : BOOLEAN;
+VAR result : BOOLEAN; i : INTEGER;
+BEGIN
+  result := FALSE;
+  FOR i := 0 TO LEN(products) - 1 DO
+    IF products[i].stock < 0 THEN
+      result := TRUE  
+    END;
+  END;
+  RETURN result
+END IsGameOver;
  
 PROCEDURE Turn;
 VAR i : INTEGER; node : Node;
-BEGIN  
-  IF nTurn >= maxTurn THEN 
-    JS.do("alert('Вы выиграли')"); 
-  ELSIF IsWrongTotalPlanTime() THEN  
-    JS.do("alert('Плановое время не может превысить 480 минут!')"); 
-  ELSE
-    GetOrders; 
-    SendOrdersToConsumers;
-    FOR i := 0 TO LEN(views) - 1 DO
-        (* добавляем в список обновлений *)
-        node := products[i].listeners;
-        WHILE node # NIL DO            
-          AddViewForUpdate(node.rec(View));  
-          node := node.next;
-        END;        
-    END;  
-    nTurn := nTurn + 1;  
-  END;  
+BEGIN    
+  IF nTurn >= 0 THEN
+    IF IsWrongTotalPlanTime() THEN  
+      JS.do("alert('Плановое время не может превысить 480 минут!')"); 
+    ELSE (* стандартный ход *)
+      GetOrders; 
+      SendOrdersToConsumers;      
+      (* добавляем в список обновлений *)
+      FOR i := 0 TO LEN(products) - 1 DO          
+          node := products[i].listeners;
+          WHILE node # NIL DO            
+            AddViewForUpdate(node.rec(View));  
+            node := node.next;
+          END;        
+      END;  
+      nTurn := nTurn + 1;
+    END;   
+    IF IsGameOver() THEN 
+      JS.do("alert('Вы проиграли!')"); 
+      nTurn := -1; (* после этого кнопка хода перестает работать *)
+    ELSIF nTurn >= maxTurn THEN 
+      JS.do("alert('Вы выиграли!')"); 
+      nTurn := -1; (* после этого кнопка хода перестает работать *)
+    END;
+  END;
 END Turn;
 
 PROCEDURE IsOverView(view : View) : BOOLEAN;
@@ -274,15 +293,13 @@ BEGIN
           cnt := cnt * 10 + ORD(v[k]) - ORD("0");         
           k := k + 1;          
         END;
-        products[i].plan := cnt;
-        
+        products[i].plan := cnt;        
         (* добавляем в список обновлений *)
         node := products[i].listeners;
         WHILE node # NIL DO            
           AddViewForUpdate(node.rec(View));  
           node := node.next;
-        END;        
-
+        END;
       END; 
     END;
   END;  
@@ -451,6 +468,7 @@ END Init.
   - графики изменения запасов
   - ссылки вьюх на модели 
   - убрать коды моделей - связь только по полям вьюх
+  - отделить бизнес-логику в отдельный модуль? 
 
     НА ПОТОМ
   - евенты + сами события
