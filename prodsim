@@ -5,20 +5,27 @@ IMPORT Log, D := Draw, JS, Strings, Math;
 CONST 
  
   dBtn = 10.0; (* расстояние между кнопками *) 
-  width = 401; height = 401; (* размеры холста *)
+  width = 401.0; height = 451.0; (* размеры холста *)
   greenColor = 0FFCCFFAAH;
   
+  productACode = 0;
+  productBCode = 1;
+  productCCode = 2;  
+
   productsCount = 3; (* размер номенклатуры изделий *)
 
   (* коды вьюх *)
-  viewTurnCode = productsCount;
-  viewTotalCode = productsCount + 1;
+  viewTurnCode = 3;
+  viewTotalCode = 4;
   viewProductACode = 0;
   viewProductBCode = 1;
   viewProductCCode = 2;
+  viewStoreGraphicsCode = 5;
 
-  maxTotalPlanTime = 480; (* минут за смену *)
+  maxTotalPlanTime = 480.0; (* минут за смену *)
   maxTurn = 100; (* максимальное количество смен за игру *)
+
+  storeGraphHeight = 300.0; (* высота графика запасов *)
   
   (* все единицы измерения времени в минутах *)
 TYPE 
@@ -30,13 +37,13 @@ TYPE
    
   Product = POINTER TO RECORD (AnyRec)     
     name             : ARRAY 100 OF CHAR;
-    workTime         : INTEGER; (* время обработки единицы изделия *)
-    changeoverTime   : INTEGER; (* время перенастройки на это изделие *)
-    plan             : INTEGER; (* количество изделий, которое надо произвести за смену *)
-    stock            : INTEGER; (* количество изделий на складе на начало смены *)
-    order            : INTEGER; (* количество изделий на сегодня, которые заберут сегодня со склада - должно быть на складе на начало смены*)
-    meanOrder        : INTEGER; (* средний заказ, шт *)
-    amplitudeOrder   : INTEGER; (* размер колебания заказа *)
+    workTime         : REAL; (* время обработки единицы изделия *)
+    changeoverTime   : REAL; (* время перенастройки на это изделие *)
+    plan             : REAL; (* количество изделий, которое надо произвести за смену *)
+    stock            : REAL; (* количество изделий на складе на начало смены *)
+    order            : REAL; (* количество изделий на сегодня, которые заберут сегодня со склада - должно быть на складе на начало смены*)
+    meanOrder        : REAL; (* средний заказ, шт *)
+    amplitudeOrder   : REAL; (* размер колебания заказа *)
     listeners        : Node     (* список вьюшек для уведомления *) 
   END;
   View = POINTER TO RECORD (AnyRec)  
@@ -50,22 +57,45 @@ TYPE
     UpdateProc       : PROCEDURE (view : View);  (* процедура апдейта вьюхи *)
     model            : Product
   END;
+  StoreBalanceHistRec = POINTER TO RECORD (AnyRec)
+    nTurn : INTEGER; 
+    amounts : ARRAY productsCount OF REAL   
+  END;
 
 VAR 
   products : ARRAY productsCount OF Product;
-  views : ARRAY (productsCount + 2) OF View;
-  totalPlanTime : INTEGER; (* всего необходимо минут на плановое количество *)
+  views : ARRAY (productsCount + 3) OF View;
+  totalPlanTime : REAL; (* всего необходимо минут на плановое количество *)
   nTurn  : INTEGER; (* номер хода *)
   viewsForUpdate : Node;  (* список вьюх. которые надо обновить перед отрисовкой *)
- 
+  storeBalanceHistory : Node; (* история изменения остатков склада - последние записи сверху*)
+  productsColors : ARRAY productsCount OF INTEGER; (* цвета изделий на графиках *)
+
+PROCEDURE SaveStoreHistory;
+  VAR rec : StoreBalanceHistRec; node : Node; i: INTEGER;
+BEGIN
+  NEW(rec);
+  rec.nTurn  := nTurn;
+  FOR i := 0 TO LEN(products) - 1 DO
+    rec.amounts[i] := products[i].stock;
+  END;
+  NEW(node);
+  node.rec := rec; 
+  IF storeBalanceHistory = NIL THEN
+    storeBalanceHistory := node
+  ELSE 
+    node.next := storeBalanceHistory;
+    storeBalanceHistory := node;
+  END;
+END SaveStoreHistory;
 
 PROCEDURE CalcTotalTime;
 VAR i : INTEGER;
 BEGIN
-  totalPlanTime := 0;
+  totalPlanTime := 0.0;
   FOR i := 0 TO LEN(products)-1 DO 
     totalPlanTime := totalPlanTime + products[i].plan * products[i].workTime;
-    IF products[i].plan > 0 THEN
+    IF products[i].plan > 0.0 THEN
       totalPlanTime := totalPlanTime + products[i].changeoverTime;
     END;
   END; 
@@ -75,9 +105,9 @@ PROCEDURE GetOrders;
 VAR i : INTEGER;
 BEGIN 
   FOR i := 0 TO LEN(products)-1 DO    
-    products[i].order := FLOOR(FLT(products[i].amplitudeOrder) * Math.Rnd());     
-    IF products[i].order < 0 THEN 
-      products[i].order := 0;
+    products[i].order := products[i].amplitudeOrder * Math.Rnd();     
+    IF products[i].order < 0.0 THEN 
+      products[i].order := 0.0;
     END;
   END; 
 END GetOrders;
@@ -95,32 +125,33 @@ BEGIN
   nTurn := 0;
   NEW(products[0]);
   products[0].name := "A"; 
-  products[0].workTime := 1; 
-  products[0].changeoverTime := 60; 
-  products[0].plan := 0; 
-  products[0].stock := 24;
-  products[0].meanOrder := 30;
-  products[0].amplitudeOrder := 20;
+  products[0].workTime := 1.0; 
+  products[0].changeoverTime := 60.0; 
+  products[0].plan := 0.0; 
+  products[0].stock := 154.0;
+  products[0].meanOrder := 30.0;
+  products[0].amplitudeOrder := 20.0;
+  productsColors[0] := 0FFFF0000H;
   
   NEW(products[1]);
   products[1].name := "B"; 
-  products[1].workTime := 3; 
-  products[1].changeoverTime := 60; 
-  products[1].plan := 0; 
-  products[1].stock := 19;
-  products[1].meanOrder := 30;
-  products[1].amplitudeOrder := 40;
- 
+  products[1].workTime := 3.0; 
+  products[1].changeoverTime := 60.0; 
+  products[1].plan := 0.0; 
+  products[1].stock := 150.0;
+  products[1].meanOrder := 30.0;
+  products[1].amplitudeOrder := 40.0;
+  productsColors[1] := 0FF00FF00H;
  
   NEW(products[2]);
   products[2].name := "C";
-  products[2].workTime := 2; 
-  products[2].changeoverTime := 60; 
-  products[2].plan := 0; 
-  products[2].stock := 11;   
-  products[2].meanOrder := 50;
-  products[2].amplitudeOrder := 10;
-  
+  products[2].workTime := 2.0; 
+  products[2].changeoverTime := 60.0; 
+  products[2].plan := 0.0; 
+  products[2].stock := 151.0;   
+  products[2].meanOrder := 50.0;
+  products[2].amplitudeOrder := 10.0;
+  productsColors[2] := 0FF0000FFH;
   
   CalcTotalTime;
  
@@ -193,7 +224,7 @@ VAR result : BOOLEAN; i : INTEGER;
 BEGIN
   result := FALSE;
   FOR i := 0 TO LEN(products) - 1 DO
-    IF products[i].stock < 0 THEN
+    IF products[i].stock < 0.0 THEN
       result := TRUE  
     END;
   END;
@@ -202,7 +233,8 @@ END IsGameOver;
  
 PROCEDURE Turn;
 VAR i : INTEGER; node : Node;
-BEGIN    
+BEGIN  
+  SaveStoreHistory;
   IF nTurn >= 0 THEN
     IF IsWrongTotalPlanTime() THEN  
       JS.do("alert('Плановое время не может превысить 480 минут!')"); 
@@ -217,6 +249,7 @@ BEGIN
             node := node.next;
           END;        
       END;  
+      AddViewForUpdate(views[viewStoreGraphicsCode]);   
       nTurn := nTurn + 1;
     END;   
     IF IsGameOver() THEN 
@@ -239,7 +272,7 @@ VAR str, strInt : ARRAY 100 OF CHAR; i : INTEGER;
 BEGIN
   str := "Итого (мин.):       ";
   strInt := "";
-  Strings.IntToString(totalPlanTime, strInt); 
+  Strings.IntToString(FLOOR(totalPlanTime), strInt); 
   Strings.Join(str, strInt);
   FOR i := 0 TO LEN(str)-1 DO  
     label[i] := str[i];
@@ -253,11 +286,11 @@ BEGIN
   Strings.Join(str, p.name);  
   Strings.Join(str, ": ");
   strInt := "";
-  Strings.IntToString(p.plan, strInt); 
+  Strings.IntToString(FLOOR(p.plan), strInt); 
   Strings.Join(str, " ");
   Strings.Join(str, strInt);
   Strings.Join(str, " шт., (склад: ");
-  Strings.IntToString(p.stock, strInt);
+  Strings.IntToString(FLOOR(p.stock), strInt);
   Strings.Join(str, strInt);
   Strings.Join(str, " шт.)");   
   FOR i := 0 TO LEN(str)-1 DO 
@@ -293,7 +326,7 @@ BEGIN
           cnt := cnt * 10 + ORD(v[k]) - ORD("0");         
           k := k + 1;          
         END;
-        products[i].plan := cnt;        
+        products[i].plan := FLT(cnt);        
         (* добавляем в список обновлений *)
         node := products[i].listeners;
         WHILE node # NIL DO            
@@ -305,6 +338,38 @@ BEGIN
   END;  
 END InputProductCount;
 
+PROCEDURE UpdateStoreGraphicsView (view : View);
+  VAR node : Node; i : INTEGER; maxStoreAmount, x, y : REAL;
+BEGIN
+  (* сначала определяем масштабирование по вертикали *)
+  maxStoreAmount := 0.0;
+  node := storeBalanceHistory;
+  WHILE node # NIL DO    
+    FOR i := 0 TO LEN(products)-1 DO      
+      IF node.rec(StoreBalanceHistRec).amounts[i] > maxStoreAmount THEN
+        maxStoreAmount := node.rec(StoreBalanceHistRec).amounts[i];
+      END;    
+    END;
+    node := node.next;
+  END;  
+  node := storeBalanceHistory;
+  (* отрисовываем точки *)
+  D.NoStroke;
+  WHILE node # NIL DO
+    FOR i := 0 TO LEN(products)-1 DO  
+      D.Fill(productsColors[i]);      
+      x := 4.0*FLT(node.rec(StoreBalanceHistRec).nTurn) + 5.0;
+      y := node.rec(StoreBalanceHistRec).amounts[i] * storeGraphHeight/maxStoreAmount;
+      (*Log.Real(x); Log.Ln;
+      Log.Real(y); Log.Ln;*)
+      D.Ellipse(x, y, 2.0,2.0);        
+    END;
+    D.Stroke(255H);
+    D.StrokeWidth(1);
+    node := node.next;
+  END; 
+  
+END UpdateStoreGraphicsView; 
 
 PROCEDURE InitViews*;
 VAR
@@ -315,7 +380,7 @@ BEGIN
   NEW(views[viewTotalCode]);
   views[viewTotalCode].x := 1.0; 
   views[viewTotalCode].height := 24.0; 
-  views[viewTotalCode].y := FLT(height) - views[viewTotalCode].height - 1.0; 
+  views[viewTotalCode].y := height - views[viewTotalCode].height - 1.0; 
   views[viewTotalCode].width := 240.0;
   UpdateTotalTimeLabel(views[viewTotalCode].label);  
   views[viewTotalCode].bgColor := 255H; 
@@ -334,7 +399,7 @@ BEGIN
   NEW(views[viewTurnCode]);
   views[viewTurnCode].x := 1.0 + views[viewTotalCode].width + dBtn; 
   views[viewTurnCode].height := 24.0; 
-  views[viewTurnCode].y := FLT(height) - views[viewTurnCode].height - 1.0; 
+  views[viewTurnCode].y := height - views[viewTurnCode].height - 1.0; 
   views[viewTurnCode].width := 100.0;
   views[viewTurnCode].label := "Работать";
   views[viewTurnCode].bgColor := 255H; 
@@ -345,7 +410,7 @@ BEGIN
   NEW(views[viewProductACode]);
   views[viewProductACode].x := 1.0; 
   views[viewProductACode].height := 24.0; 
-  views[viewProductACode].y := FLT(height) - 2.0*views[viewProductACode].height - 1.0 - dBtn; 
+  views[viewProductACode].y := height - 2.0*views[viewProductACode].height - 1.0 - dBtn; 
   views[viewProductACode].width := views[viewTotalCode].width; 
   UpdateProductLabel(views[viewProductACode].label, products[viewProductACode]);  
   views[viewProductACode].bgColor := 255H; 
@@ -364,7 +429,7 @@ BEGIN
   NEW(views[viewProductBCode]);
   views[viewProductBCode].x := 1.0; 
   views[viewProductBCode].height := 24.0; 
-  views[viewProductBCode].y := FLT(height) - 3.0*views[viewProductBCode].height - 1.0 - 2.0*dBtn; 
+  views[viewProductBCode].y := height - 3.0*views[viewProductBCode].height - 1.0 - 2.0*dBtn; 
   views[viewProductBCode].width := views[viewTotalCode].width; 
   UpdateProductLabel(views[viewProductBCode].label, products[viewProductBCode]);  
   views[viewProductBCode].bgColor := 255H; 
@@ -382,7 +447,7 @@ BEGIN
   NEW(views[viewProductCCode]);
   views[viewProductCCode].x := 1.0; 
   views[viewProductCCode].height := 24.0; 
-  views[viewProductCCode].y := FLT(height) - 4.0*views[viewProductBCode].height - 1.0 - 3.0*dBtn; 
+  views[viewProductCCode].y := height - 4.0*views[viewProductBCode].height - 1.0 - 3.0*dBtn; 
   views[viewProductCCode].width := views[viewTotalCode].width; 
   UpdateProductLabel(views[viewProductCCode].label, products[viewProductCCode]);  
   views[viewProductCCode].bgColor := 255H; 
@@ -396,13 +461,25 @@ BEGIN
   node.rec := views[viewProductCCode];
   products[2].listeners.next := node;    
  
+  (* отображение графиков запасов *)
+  NEW(views[viewStoreGraphicsCode]);
+  views[viewStoreGraphicsCode].x := 1.0; 
+  views[viewStoreGraphicsCode].height := storeGraphHeight; 
+  views[viewStoreGraphicsCode].y := 1.0 ; 
+  views[viewStoreGraphicsCode].width := width - 10.0;     
+  views[viewStoreGraphicsCode].bgColor := 255H; 
+  views[viewStoreGraphicsCode].txtColor := 0H; 
+  views[viewStoreGraphicsCode].overBgColor := 255H;
+  views[viewStoreGraphicsCode].ClickProc := NIL; 
+  views[viewStoreGraphicsCode].UpdateProc := NIL;
+  views[viewStoreGraphicsCode].model := NIL;  
 END InitViews;
 
 PROCEDURE Setup*;
 BEGIN
   InitData;
   InitViews;  
-  D.SetSize(width, height);
+  D.SetSize(FLOOR(width), FLOOR(height));
   D.SetFrameRate(20);
 END Setup;
 
@@ -418,7 +495,9 @@ END DrawView;
 PROCEDURE DrawTextView (view : View); (* рисуем текстовую вьюху*)
 BEGIN
   DrawView(view);
-  D.Stringi(view.label, FLOOR(view.x) + 17, FLOOR(view.y + view.height) - 6, 16);  
+  IF LEN(view.label) > 0 THEN 
+    D.Stringi(view.label, FLOOR(view.x) + 17, FLOOR(view.y + view.height) - 6, 16);  
+  END;
 END DrawTextView; 
 
 PROCEDURE Plot;
@@ -435,9 +514,10 @@ BEGIN
     viewsForUpdate := viewsForUpdate.next;
   END;    
   D.SetBackground(255H); 
-  FOR i := 0 TO LEN(views) - 1 DO
+  FOR i := 0 TO LEN(views) - 2 DO
     DrawTextView(views[i]);
   END;
+  UpdateStoreGraphicsView(NIL);
 END Plot;
 
 PROCEDURE Released;
@@ -459,12 +539,11 @@ BEGIN
   D.Start; 
 END Init.
 (* todo 
-
-  - подсветка Итого
-  - сохранение истории ходов  
-  - вложенные вьюхи
-  - каждая вьюха сама знает как себя рисовать
   - графики изменения запасов
+  - раскраска изделий или легенда графика
+  - подсветка Итого  
+  - вложенные вьюхи
+  - каждая вьюха сама знает как себя рисовать  
   - убрать коды моделей - связь только по полям вьюх
   - отделить бизнес-логику в отдельный модуль? 
 
