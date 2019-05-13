@@ -157,7 +157,7 @@ BEGIN
  
   NEW(products[2]);
   products[2].name := "C";
-  products[2].workTime := 2.0; 
+  products[2].workTime := 4.0; 
   products[2].changeoverTime := 120.0; 
   products[2].plan := 0.0; 
   products[2].stock := 170.0;   
@@ -352,33 +352,30 @@ BEGIN
 END InputProductCount;
 
 PROCEDURE UpdateStoreGraphicsView (view : View);
-  VAR node : Node; i : INTEGER; x, y : REAL;
+  VAR node : Node; 
+      i : INTEGER; 
+      x, y : REAL; 
+      xOld, yOld : ARRAY productsCount OF REAL;
+      firstPoint : BOOLEAN;
 BEGIN
-  (* сначала определяем масштабирование по вертикали *)
-  (*
-  maxStoreAmount := 0.0;
-  node := storeBalanceHistory;
-  WHILE node # NIL DO    
-    FOR i := 0 TO LEN(products)-1 DO      
-      IF node.rec(StoreBalanceHistRec).amounts[i] > maxStoreAmount THEN
-        maxStoreAmount := node.rec(StoreBalanceHistRec).amounts[i];
-      END;    
-    END;
-    node := node.next;
-  END;
-  *)   
+  firstPoint := TRUE;
   (* отрисовываем точки *)
-  node := storeBalanceHistory;
-  D.NoStroke;
+  node := storeBalanceHistory;  
   WHILE node # NIL DO
     FOR i := 0 TO LEN(products)-1 DO  
       D.Fill(products[i].color);      
       x := 4.0*FLT(node.rec(StoreBalanceHistRec).nTurn) + 5.0;
       y := storeGraphHeight - node.rec(StoreBalanceHistRec).amounts[i] * (storeGraphHeight/maxStoreAmountForView);
-      (*Log.Real(x); Log.Ln;
-      Log.Real(y); Log.Ln;*)
-      D.Rect(x, y, 5.0,5.0);        
+      D.NoStroke;
+      D.Rect(x, y, 4.0,4.0); 
+      IF ~firstPoint THEN  (* если рисуем как минимум вторую точку *)
+        D.Stroke(products[i].color);
+        D.Line(xOld[i], yOld[i], x, y); 
+      END;
+      xOld[i] := x;
+      yOld[i] := y;      
     END; 
+    firstPoint := FALSE;
     node := node.next;
   END; 
   D.Stroke(0H);
