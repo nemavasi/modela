@@ -14,6 +14,8 @@ CONST
 
   productsCount = 3; (* размер номенклатуры изделий *)
 
+  maxStoreAmountForView = 500.0; (* максимально показываемый объем запасов *)
+
   (* коды вьюх *)
   viewTurnCode = 3;
   viewTotalCode = 4;
@@ -44,7 +46,8 @@ TYPE
     order            : REAL; (* количество изделий на сегодня, которые заберут сегодня со склада - должно быть на складе на начало смены*)
     meanOrder        : REAL; (* средний заказ, шт *)
     amplitudeOrder   : REAL; (* размер колебания заказа *)
-    listeners        : Node     (* список вьюшек для уведомления *) 
+    listeners        : Node; (* список вьюшек для уведомления *) 
+    color            : INTEGER
   END;
   View = POINTER TO RECORD (AnyRec)  
     x, y             : REAL; (* левый верхний угол *)
@@ -69,7 +72,7 @@ VAR
   nTurn  : INTEGER; (* номер хода *)
   viewsForUpdate : Node;  (* список вьюх. которые надо обновить перед отрисовкой *)
   storeBalanceHistory : Node; (* история изменения остатков склада - последние записи сверху*)
-  productsColors : ARRAY productsCount OF INTEGER; (* цвета изделий на графиках *)
+  
 
 PROCEDURE SaveStoreHistory;
   VAR rec : StoreBalanceHistRec; node : Node; i: INTEGER;
@@ -105,10 +108,11 @@ PROCEDURE GetOrders;
 VAR i : INTEGER;
 BEGIN 
   FOR i := 0 TO LEN(products)-1 DO    
-    products[i].order := products[i].amplitudeOrder * Math.Rnd();     
+    products[i].order := products[i].meanOrder + products[i].amplitudeOrder * Math.Rnd();     
+    products[i].order := products[i].order - products[i].amplitudeOrder * Math.Rnd();  
     IF products[i].order < 0.0 THEN 
       products[i].order := 0.0;
-    END;
+    END;    
   END; 
 END GetOrders;
 
@@ -120,18 +124,26 @@ BEGIN
   END; 
 END SendOrdersToConsumers;
 
+PROCEDURE AddProductsToStock;
+VAR i : INTEGER;
+BEGIN 
+  FOR i := 0 TO LEN(products)-1 DO    
+    products[i].stock := products[i].stock + products[i].plan;    
+  END; 
+END AddProductsToStock;
+
 PROCEDURE InitData*;
 BEGIN
   nTurn := 0;
   NEW(products[0]);
   products[0].name := "A"; 
-  products[0].workTime := 1.0; 
+  products[0].workTime := 3.0; 
   products[0].changeoverTime := 60.0; 
   products[0].plan := 0.0; 
-  products[0].stock := 154.0;
+  products[0].stock := 160.0;
   products[0].meanOrder := 30.0;
-  products[0].amplitudeOrder := 20.0;
-  productsColors[0] := 0FFFF0000H;
+  products[0].amplitudeOrder := 10.0;
+  products[0].color := 0FFFF0000H;
   
   NEW(products[1]);
   products[1].name := "B"; 
@@ -140,18 +152,18 @@ BEGIN
   products[1].plan := 0.0; 
   products[1].stock := 150.0;
   products[1].meanOrder := 30.0;
-  products[1].amplitudeOrder := 40.0;
-  productsColors[1] := 0FF00FF00H;
+  products[1].amplitudeOrder := 10.0;
+  products[1].color := 0FF00FF00H;
  
   NEW(products[2]);
   products[2].name := "C";
   products[2].workTime := 2.0; 
-  products[2].changeoverTime := 60.0; 
+  products[2].changeoverTime := 120.0; 
   products[2].plan := 0.0; 
-  products[2].stock := 151.0;   
-  products[2].meanOrder := 50.0;
+  products[2].stock := 170.0;   
+  products[2].meanOrder := 30.0;
   products[2].amplitudeOrder := 10.0;
-  productsColors[2] := 0FF0000FFH;
+  products[2].color := 0FF0000FFH;
   
   CalcTotalTime;
  
@@ -233,14 +245,14 @@ END IsGameOver;
  
 PROCEDURE Turn;
 VAR i : INTEGER; node : Node;
-BEGIN  
-  SaveStoreHistory;
+BEGIN    
   IF nTurn >= 0 THEN
     IF IsWrongTotalPlanTime() THEN  
       JS.do("alert('Плановое время не может превысить 480 минут!')"); 
     ELSE (* стандартный ход *)
       GetOrders; 
-      SendOrdersToConsumers;      
+      SendOrdersToConsumers;   
+      AddProductsToStock;
       (* добавляем в список обновлений *)
       FOR i := 0 TO LEN(products) - 1 DO          
           node := products[i].listeners;
@@ -250,6 +262,7 @@ BEGIN
           END;        
       END;  
       AddViewForUpdate(views[viewStoreGraphicsCode]);   
+      SaveStoreHistory;
       nTurn := nTurn + 1;
     END;   
     IF IsGameOver() THEN 
@@ -339,9 +352,10 @@ BEGIN
 END InputProductCount;
 
 PROCEDURE UpdateStoreGraphicsView (view : View);
-  VAR node : Node; i : INTEGER; maxStoreAmount, x, y : REAL;
+  VAR node : Node; i : INTEGER; x, y : REAL;
 BEGIN
   (* сначала определяем масштабирование по вертикали *)
+  (*
   maxStoreAmount := 0.0;
   node := storeBalanceHistory;
   WHILE node # NIL DO    
@@ -351,24 +365,24 @@ BEGIN
       END;    
     END;
     node := node.next;
-  END;  
-  node := storeBalanceHistory;
+  END;
+  *)   
   (* отрисовываем точки *)
+  node := storeBalanceHistory;
   D.NoStroke;
   WHILE node # NIL DO
     FOR i := 0 TO LEN(products)-1 DO  
-      D.Fill(productsColors[i]);      
+      D.Fill(products[i].color);      
       x := 4.0*FLT(node.rec(StoreBalanceHistRec).nTurn) + 5.0;
-      y := node.rec(StoreBalanceHistRec).amounts[i] * storeGraphHeight/maxStoreAmount;
+      y := storeGraphHeight - node.rec(StoreBalanceHistRec).amounts[i] * (storeGraphHeight/maxStoreAmountForView);
       (*Log.Real(x); Log.Ln;
       Log.Real(y); Log.Ln;*)
-      D.Ellipse(x, y, 2.0,2.0);        
-    END;
-    D.Stroke(255H);
-    D.StrokeWidth(1);
+      D.Rect(x, y, 5.0,5.0);        
+    END; 
     node := node.next;
   END; 
-  
+  D.Stroke(0H);
+  D.Fill(0H);   
 END UpdateStoreGraphicsView; 
 
 PROCEDURE InitViews*;
