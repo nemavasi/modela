@@ -367,7 +367,7 @@ BEGIN
       x := 4.0*FLT(node.rec(StoreBalanceHistRec).nTurn) + 5.0;
       y := storeGraphHeight - node.rec(StoreBalanceHistRec).amounts[i] * (storeGraphHeight/maxStoreAmountForView);
       D.NoStroke;
-      D.Rect(x, y, 4.0,4.0); 
+      D.Ellipse(x, y, 4.0,4.0); 
       IF ~firstPoint THEN  (* если рисуем как минимум вторую точку *)
         D.Stroke(products[i].color);
         D.Line(xOld[i], yOld[i], x, y); 
@@ -549,9 +549,11 @@ BEGIN
   D.SetReleasedProc(Released);  
   D.Start; 
 END Init.
-(* todo 
-  - графики изменения запасов
+(* todo  
   - раскраска изделий или легенда графика
+  - оси координат ?
+  - улучшить описание
+  - отображать время производства и время наладки одного изделия
   - подсветка Итого  
   - вложенные вьюхи
   - каждая вьюха сама знает как себя рисовать  
