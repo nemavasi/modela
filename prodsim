@@ -5,7 +5,7 @@ IMPORT Log, D := Draw, JS, Strings, Math;
 CONST 
  
   dBtn = 10.0; (* расстояние между кнопками *) 
-  width = 401.0; height = 451.0; (* размеры холста *)
+  width = 401.0; height = 501.0; (* размеры холста *)
   greenColor = 0FFCCFFAAH;
   
   productACode = 0;
@@ -14,7 +14,7 @@ CONST
 
   productsCount = 3; (* размер номенклатуры изделий *)
 
-  maxStoreAmountForView = 500.0; (* максимально показываемый объем запасов *)
+  maxStoreAmountForView = 500.0; (* максимально показываемый на графике объем запасов *)
 
   (* коды вьюх *)
   viewTurnCode = 3;
@@ -57,9 +57,12 @@ TYPE
     txtColor         : INTEGER;
     overBgColor      : INTEGER;   (* цвет когда под указателем мыши *)
     ClickProc        : PROCEDURE;
-    UpdateProc       : PROCEDURE (view : View);  (* процедура апдейта вьюхи *)
+    UpdateProc       : PROCEDURE (view : View); (* процедура апдейта вьюхи *)
+    ViewProc         : PROCEDURE (view : View); (* процедура альтернативной отрисовки *)
     model            : Product
+   
   END;
+  (* запись истории остатков склада *)
   StoreBalanceHistRec = POINTER TO RECORD (AnyRec)
     nTurn : INTEGER; 
     amounts : ARRAY productsCount OF REAL   
@@ -71,9 +74,9 @@ VAR
   totalPlanTime : REAL; (* всего необходимо минут на плановое количество *)
   nTurn  : INTEGER; (* номер хода *)
   viewsForUpdate : Node;  (* список вьюх. которые надо обновить перед отрисовкой *)
-  storeBalanceHistory : Node; (* история изменения остатков склада - последние записи сверху*)
-  
+  storeBalanceHistory : Node; (* история изменения остатков склада - последние записи сверху*)  
 
+(* запись текущих остатков в историю *)
 PROCEDURE SaveStoreHistory;
   VAR rec : StoreBalanceHistRec; node : Node; i: INTEGER;
 BEGIN
@@ -92,6 +95,7 @@ BEGIN
   END;
 END SaveStoreHistory;
 
+(* рассчитать общее плановое время на производство планируемого количества, мин *)
 PROCEDURE CalcTotalTime;
 VAR i : INTEGER;
 BEGIN
@@ -104,6 +108,7 @@ BEGIN
   END; 
 END CalcTotalTime; 
 
+(* генерация заказов *)
 PROCEDURE GetOrders;
 VAR i : INTEGER;
 BEGIN 
@@ -116,6 +121,7 @@ BEGIN
   END; 
 END GetOrders;
 
+(* отправить заказы со склада покупателям *)
 PROCEDURE SendOrdersToConsumers;
 VAR i : INTEGER;
 BEGIN 
@@ -124,6 +130,7 @@ BEGIN
   END; 
 END SendOrdersToConsumers;
 
+(* передать продукцию из цеха на склад *)
 PROCEDURE AddProductsToStock;
 VAR i : INTEGER;
 BEGIN 
@@ -135,35 +142,35 @@ END AddProductsToStock;
 PROCEDURE InitData*;
 BEGIN
   nTurn := 0;
-  NEW(products[0]);
-  products[0].name := "A"; 
-  products[0].workTime := 3.0; 
-  products[0].changeoverTime := 60.0; 
-  products[0].plan := 0.0; 
-  products[0].stock := 160.0;
-  products[0].meanOrder := 30.0;
-  products[0].amplitudeOrder := 10.0;
-  products[0].color := 0FFFF0000H;
+  NEW(products[productACode]);
+  products[productACode].name := "P3"; 
+  products[productACode].workTime := 3.0; 
+  products[productACode].changeoverTime := 60.0; 
+  products[productACode].plan := 0.0; 
+  products[productACode].stock := 160.0;
+  products[productACode].meanOrder := 30.0;
+  products[productACode].amplitudeOrder := 10.0;
+  products[productACode].color := 0FFFF0000H;
   
-  NEW(products[1]);
-  products[1].name := "B"; 
-  products[1].workTime := 3.0; 
-  products[1].changeoverTime := 60.0; 
-  products[1].plan := 0.0; 
-  products[1].stock := 150.0;
-  products[1].meanOrder := 30.0;
-  products[1].amplitudeOrder := 10.0;
-  products[1].color := 0FF00FF00H;
+  NEW(products[productBCode]);
+  products[productBCode].name := "P2"; 
+  products[productBCode].workTime := 3.0; 
+  products[productBCode].changeoverTime := 60.0; 
+  products[productBCode].plan := 0.0; 
+  products[productBCode].stock := 150.0;
+  products[productBCode].meanOrder := 30.0;
+  products[productBCode].amplitudeOrder := 10.0;
+  products[productBCode].color := 0FF00FF00H;
  
-  NEW(products[2]);
-  products[2].name := "C";
-  products[2].workTime := 4.0; 
-  products[2].changeoverTime := 120.0; 
-  products[2].plan := 0.0; 
-  products[2].stock := 170.0;   
-  products[2].meanOrder := 30.0;
-  products[2].amplitudeOrder := 10.0;
-  products[2].color := 0FF0000FFH;
+  NEW(products[productCCode]);
+  products[productCCode].name := "P1";
+  products[productCCode].workTime := 4.0; 
+  products[productCCode].changeoverTime := 120.0; 
+  products[productCCode].plan := 0.0; 
+  products[productCCode].stock := 170.0;   
+  products[productCCode].meanOrder := 30.0;
+  products[productCCode].amplitudeOrder := 10.0;
+  products[productCCode].color := 0FF0000FFH;
   
   CalcTotalTime;
  
@@ -207,6 +214,7 @@ BEGIN
   UNTIL ~repeatAgain;
 END Ask;
 
+(* проверка того, что успеем сделать план за смену *)
 PROCEDURE IsWrongTotalPlanTime() : BOOLEAN;
 VAR result : BOOLEAN;
 BEGIN
@@ -218,6 +226,7 @@ BEGIN
   RETURN result
 END IsWrongTotalPlanTime; 
 
+(* добавление вьюшки в таргет (список обновляемых вьюшек) *)
 PROCEDURE AddViewForUpdate(view : View);
 VAR node : Node;
 BEGIN    
@@ -231,6 +240,7 @@ BEGIN
   END
 END AddViewForUpdate;
 
+(* проверка что запасов на складе хватает на удовлетворение спроса *)
 PROCEDURE IsGameOver() : BOOLEAN;
 VAR result : BOOLEAN; i : INTEGER;
 BEGIN
@@ -242,7 +252,8 @@ BEGIN
   END;
   RETURN result
 END IsGameOver;
- 
+
+(* обработка хода игрока *)
 PROCEDURE Turn;
 VAR i : INTEGER; node : Node;
 BEGIN    
@@ -275,11 +286,13 @@ BEGIN
   END;
 END Turn;
 
+(* проверка что указатель мыши находится над вьюхой *)
 PROCEDURE IsOverView(view : View) : BOOLEAN;
 BEGIN
   RETURN D.focus & (D.mouseX > view.x) & (D.mouseX < view.x + view.width) & (D.mouseY > view.y) & (D.mouseY < view.y + view.height)
 END IsOverView;
 
+(* процедура обновления вьюхи Итого *)
 PROCEDURE UpdateTotalTimeLabel*(VAR label : ARRAY OF CHAR);
 VAR str, strInt : ARRAY 100 OF CHAR; i : INTEGER;
 BEGIN
@@ -292,7 +305,8 @@ BEGIN
   END; 
 END UpdateTotalTimeLabel;
 
-PROCEDURE UpdateProductLabel*(VAR label : ARRAY OF CHAR; p : Product);
+(* процедура обновления информации о товаре *)
+PROCEDURE UpdateProductLabel(VAR label : ARRAY OF CHAR; p : Product);
 VAR str, strInt : ARRAY 100 OF CHAR; i : INTEGER;
 BEGIN  
   str := "по "; 
@@ -312,13 +326,15 @@ BEGIN
   
 END UpdateProductLabel;
 
+(* процедура обновления вьюшки о товаре *)
 PROCEDURE UpdateProductView (view : View);
-VAR str : ARRAY 100 OF CHAR;
+VAR str : ARRAY 100 OF CHAR; 
 BEGIN    
-  UpdateProductLabel(str, view.model);  
+  UpdateProductLabel(str, view.model);
   view.label := str;  
 END UpdateProductView; 
 
+(* процедура обновления вьюшки Итого *)
 PROCEDURE UpdateTotalView (view : View);
 VAR str : ARRAY 100 OF CHAR;
 BEGIN    
@@ -326,6 +342,7 @@ BEGIN
   UpdateTotalTimeLabel(views[viewTotalCode].label);  
 END UpdateTotalView; 
 
+(* ввод планового количества от пользователя *)
 PROCEDURE InputProductCount;
 VAR i, k, cnt, code : INTEGER; str, strInt : ARRAY 100 OF CHAR; v : ARRAY 3 OF CHAR; node : Node;
 BEGIN     
@@ -351,13 +368,32 @@ BEGIN
   END;  
 END InputProductCount;
 
-PROCEDURE UpdateStoreGraphicsView (view : View);
+PROCEDURE DrawView (view : View); (* рисуем вьюху*)
+BEGIN
+  D.Fill(view.bgColor);
+  IF IsOverView(view) THEN D.Fill(view.overBgColor) ELSE D.NoFill END;
+  D.StrokeWidth(1);
+  D.RectRounded(view.x, view.y, view.width, view.height, 3.0);
+  D.Fill(view.txtColor);   
+END DrawView; 
+
+PROCEDURE DrawTextView (view : View); (* рисуем текстовую вьюху*)
+BEGIN
+  DrawView(view);
+  IF LEN(view.label) > 0 THEN 
+    D.Stringi(view.label, FLOOR(view.x) + 17, FLOOR(view.y + view.height) - 6, 16);  
+  END;
+END DrawTextView; 
+
+(* обновление графика отображения запасов на складе *)
+PROCEDURE DrawStoreGraphicsView (view : View);
   VAR node : Node; 
       i : INTEGER; 
       x, y : REAL; 
       xOld, yOld : ARRAY productsCount OF REAL;
       firstPoint : BOOLEAN;
 BEGIN
+  DrawView(view);
   firstPoint := TRUE;
   (* отрисовываем точки *)
   node := storeBalanceHistory;  
@@ -380,8 +416,9 @@ BEGIN
   END; 
   D.Stroke(0H);
   D.Fill(0H);   
-END UpdateStoreGraphicsView; 
+END DrawStoreGraphicsView; 
 
+(* инициализация вьюшек *)
 PROCEDURE InitViews*;
 VAR
   node : Node;
@@ -392,12 +429,12 @@ BEGIN
   views[viewTotalCode].x := 1.0; 
   views[viewTotalCode].height := 24.0; 
   views[viewTotalCode].y := height - views[viewTotalCode].height - 1.0; 
-  views[viewTotalCode].width := 240.0;
-  UpdateTotalTimeLabel(views[viewTotalCode].label);  
+  views[viewTotalCode].width := 240.0;  
   views[viewTotalCode].bgColor := 255H; 
   views[viewTotalCode].txtColor := 0H; 
   views[viewTotalCode].overBgColor := 255H; 
   views[viewTotalCode].UpdateProc := UpdateTotalView;
+  views[viewTotalCode].ViewProc := DrawTextView; 
  
   (* добавляем как слушатель *)
   FOR i := 0 TO LEN(products) - 1 DO
@@ -406,7 +443,7 @@ BEGIN
     products[i].listeners := node;     
   END;  
  
-  (* кнопка старт *)
+  (* кнопка хода *)
   NEW(views[viewTurnCode]);
   views[viewTurnCode].x := 1.0 + views[viewTotalCode].width + dBtn; 
   views[viewTurnCode].height := 24.0; 
@@ -417,60 +454,60 @@ BEGIN
   views[viewTurnCode].txtColor := 0H; 
   views[viewTurnCode].overBgColor := greenColor;
   views[viewTurnCode].ClickProc := Turn;
+  views[viewTurnCode].ViewProc := DrawTextView; 
   (* Продукт A *) 
   NEW(views[viewProductACode]);
   views[viewProductACode].x := 1.0; 
   views[viewProductACode].height := 24.0; 
   views[viewProductACode].y := height - 2.0*views[viewProductACode].height - 1.0 - dBtn; 
-  views[viewProductACode].width := views[viewTotalCode].width; 
-  UpdateProductLabel(views[viewProductACode].label, products[viewProductACode]);  
+  views[viewProductACode].width := views[viewTotalCode].width;   
   views[viewProductACode].bgColor := 255H; 
   views[viewProductACode].txtColor := 0H; 
   views[viewProductACode].overBgColor := greenColor;
   views[viewProductACode].ClickProc := InputProductCount; 
   views[viewProductACode].UpdateProc := UpdateProductView;
-  views[viewProductACode].model := products[viewProductACode];  
+  views[viewProductACode].model := products[viewProductACode]; 
+  views[viewProductACode].ViewProc := DrawTextView; 
   (* добавляем как слушатель *)
   NEW(node);
   node.rec := views[viewProductACode];
-  products[0].listeners.next := node; 
-  
+  products[productACode].listeners.next := node;   
   
   (* Продукт B *) 
   NEW(views[viewProductBCode]);
   views[viewProductBCode].x := 1.0; 
   views[viewProductBCode].height := 24.0; 
   views[viewProductBCode].y := height - 3.0*views[viewProductBCode].height - 1.0 - 2.0*dBtn; 
-  views[viewProductBCode].width := views[viewTotalCode].width; 
-  UpdateProductLabel(views[viewProductBCode].label, products[viewProductBCode]);  
+  views[viewProductBCode].width := views[viewTotalCode].width;  
   views[viewProductBCode].bgColor := 255H; 
   views[viewProductBCode].txtColor := 0H; 
   views[viewProductBCode].overBgColor := greenColor;
   views[viewProductBCode].ClickProc := InputProductCount; 
   views[viewProductBCode].UpdateProc := UpdateProductView;
   views[viewProductBCode].model := products[viewProductBCode]; 
+  views[viewProductBCode].ViewProc := DrawTextView; 
   (* добавляем как слушатель *)
   NEW(node);
   node.rec := views[viewProductBCode];
-  products[1].listeners.next := node; 
+  products[productBCode].listeners.next := node; 
  
   (* Продукт C *) 
   NEW(views[viewProductCCode]);
   views[viewProductCCode].x := 1.0; 
   views[viewProductCCode].height := 24.0; 
   views[viewProductCCode].y := height - 4.0*views[viewProductBCode].height - 1.0 - 3.0*dBtn; 
-  views[viewProductCCode].width := views[viewTotalCode].width; 
-  UpdateProductLabel(views[viewProductCCode].label, products[viewProductCCode]);  
+  views[viewProductCCode].width := views[viewTotalCode].width;     
   views[viewProductCCode].bgColor := 255H; 
   views[viewProductCCode].txtColor := 0H; 
   views[viewProductCCode].overBgColor := greenColor;
   views[viewProductCCode].ClickProc := InputProductCount; 
   views[viewProductCCode].UpdateProc := UpdateProductView;
-   views[viewProductCCode].model := products[viewProductCCode]; 
+  views[viewProductCCode].model := products[viewProductCCode]; 
+  views[viewProductCCode].ViewProc := DrawTextView;  
   (* добавляем как слушатель *)
   NEW(node);
   node.rec := views[viewProductCCode];
-  products[2].listeners.next := node;    
+  products[productCCode].listeners.next := node;    
  
   (* отображение графиков запасов *)
   NEW(views[viewStoreGraphicsCode]);
@@ -484,6 +521,17 @@ BEGIN
   views[viewStoreGraphicsCode].ClickProc := NIL; 
   views[viewStoreGraphicsCode].UpdateProc := NIL;
   views[viewStoreGraphicsCode].model := NIL;  
+  views[viewStoreGraphicsCode].ViewProc := DrawStoreGraphicsView;   
+ 
+  (* добавляем вьюшки в список обновлений *)
+  FOR i := 0 TO LEN(products) - 1 DO          
+    node := products[i].listeners;
+    WHILE node # NIL DO            
+      AddViewForUpdate(node.rec(View));  
+      node := node.next;
+    END;        
+  END; 
+ 
 END InitViews;
 
 PROCEDURE Setup*;
@@ -494,28 +542,10 @@ BEGIN
   D.SetFrameRate(20);
 END Setup;
 
-PROCEDURE DrawView (view : View); (* рисуем вьюху*)
-BEGIN
-  D.Fill(view.bgColor);
-  IF IsOverView(view) THEN D.Fill(view.overBgColor) ELSE D.NoFill END;
-  D.StrokeWidth(1);
-  D.RectRounded(view.x, view.y, view.width, view.height, 3.0);
-  D.Fill(view.txtColor);   
-END DrawView; 
-
-PROCEDURE DrawTextView (view : View); (* рисуем текстовую вьюху*)
-BEGIN
-  DrawView(view);
-  IF LEN(view.label) > 0 THEN 
-    D.Stringi(view.label, FLOOR(view.x) + 17, FLOOR(view.y + view.height) - 6, 16);  
-  END;
-END DrawTextView; 
-
 PROCEDURE Plot;
   VAR i: INTEGER; node : Node; v: View;
 BEGIN  
-  (* сначала апдейтим все вьюхи которые нужно обновить так как изменились данные в моделях *)
-  
+  (* сначала апдейтим все вьюхи которые нужно обновить так как изменились данные в моделях *)  
   WHILE viewsForUpdate # NIL DO  
    node := viewsForUpdate;  
    v := node.rec(View);
@@ -525,10 +555,9 @@ BEGIN
     viewsForUpdate := viewsForUpdate.next;
   END;    
   D.SetBackground(255H); 
-  FOR i := 0 TO LEN(views) - 2 DO
-    DrawTextView(views[i]);
-  END;
-  UpdateStoreGraphicsView(NIL);
+  FOR i := 0 TO LEN(views) - 1 DO
+    views[i].ViewProc(views[i]);  
+  END;  
 END Plot;
 
 PROCEDURE Released;
@@ -552,12 +581,9 @@ END Init.
 (* todo  
   - раскраска изделий или легенда графика
   - оси координат ?
-  - улучшить описание
   - отображать время производства и время наладки одного изделия
   - подсветка Итого  
-  - вложенные вьюхи
-  - каждая вьюха сама знает как себя рисовать  
-  - убрать коды моделей - связь только по полям вьюх
+  - вложенные вьюхи  
   - отделить бизнес-логику в отдельный модуль? 
 
     НА ПОТОМ
