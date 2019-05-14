@@ -429,7 +429,7 @@ BEGIN
   views[viewTotalCode].x := 1.0; 
   views[viewTotalCode].height := 24.0; 
   views[viewTotalCode].y := height - views[viewTotalCode].height - 1.0; 
-  views[viewTotalCode].width := 240.0;  
+  views[viewTotalCode].width := 250.0;  
   views[viewTotalCode].bgColor := 255H; 
   views[viewTotalCode].txtColor := 0H; 
   views[viewTotalCode].overBgColor := 255H; 
