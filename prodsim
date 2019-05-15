@@ -19,9 +19,9 @@ CONST
   (* коды вьюх *)
   viewTurnCode = 3;
   viewTotalCode = 4;
-  viewProductACode = 0;
-  viewProductBCode = 1;
-  viewProductCCode = 2;
+  viewPlanACode = 0;
+  viewPlanBCode = 1;
+  viewPlanCCode = 2;
   viewStoreGraphicsCode = 5;
   viewStoreCode = 6;
   viewStoreLabelCode = 7;
@@ -331,6 +331,21 @@ BEGIN
   view.label := label;  
 END UpdateProductView; 
 
+(* процедура обновления вьюшки о товаре *)
+PROCEDURE UpdateStoreView (view : View);
+VAR label, str, strInt : ARRAY 100 OF CHAR; p : Product; i : INTEGER;
+BEGIN  
+  p := view.model;
+  str := "";
+  Strings.IntToString(FLOOR(p.stock), strInt);
+  Strings.Join(str, strInt);
+  Strings.Join(str, " шт.");   
+  FOR i := 0 TO LEN(str)-1 DO 
+    label[i] := str[i];
+  END; 
+  view.label := label;  
+END UpdateStoreView; 
+
 (* процедура обновления вьюшки Итого *)
 PROCEDURE UpdateTotalView (view : View);
 VAR str : ARRAY 100 OF CHAR;
@@ -492,57 +507,57 @@ BEGIN
   views[viewTurnCode].ClickProc := Turn;
   views[viewTurnCode].ViewProc := DrawTextView; 
   (* Продукт A *) 
-  NEW(views[viewProductACode]);
-  views[viewProductACode].x := 1.0; 
-  views[viewProductACode].height := 24.0; 
-  views[viewProductACode].y := height - 2.0*views[viewProductACode].height - 1.0 - dBtn; 
-  views[viewProductACode].width := views[viewTotalCode].width;   
-  views[viewProductACode].bgColor := 255H; 
-  views[viewProductACode].txtColor := 0H; 
-  views[viewProductACode].overBgColor := greenColor;
-  views[viewProductACode].ClickProc := InputProductCount; 
-  views[viewProductACode].UpdateProc := UpdateProductView;
-  views[viewProductACode].model := products[viewProductACode]; 
-  views[viewProductACode].ViewProc := DrawTextView; 
+  NEW(views[viewPlanACode]);
+  views[viewPlanACode].x := 1.0; 
+  views[viewPlanACode].height := 24.0; 
+  views[viewPlanACode].y := height - 2.0*views[viewPlanACode].height - 1.0 - dBtn; 
+  views[viewPlanACode].width := views[viewTotalCode].width;   
+  views[viewPlanACode].bgColor := 255H; 
+  views[viewPlanACode].txtColor := 0H; 
+  views[viewPlanACode].overBgColor := greenColor;
+  views[viewPlanACode].ClickProc := InputProductCount; 
+  views[viewPlanACode].UpdateProc := UpdateProductView;
+  views[viewPlanACode].model := products[viewPlanACode]; 
+  views[viewPlanACode].ViewProc := DrawTextView; 
   (* добавляем как слушатель *)
   NEW(node);
-  node.rec := views[viewProductACode];
+  node.rec := views[viewPlanACode];
   products[productACode].listeners.next := node;   
   
   (* Продукт B *) 
-  NEW(views[viewProductBCode]);
-  views[viewProductBCode].x := 1.0; 
-  views[viewProductBCode].height := 24.0; 
-  views[viewProductBCode].y := height - 3.0*views[viewProductBCode].height - 1.0 - 2.0*dBtn; 
-  views[viewProductBCode].width := views[viewTotalCode].width;  
-  views[viewProductBCode].bgColor := 255H; 
-  views[viewProductBCode].txtColor := 0H; 
-  views[viewProductBCode].overBgColor := greenColor;
-  views[viewProductBCode].ClickProc := InputProductCount; 
-  views[viewProductBCode].UpdateProc := UpdateProductView;
-  views[viewProductBCode].model := products[viewProductBCode]; 
-  views[viewProductBCode].ViewProc := DrawTextView; 
+  NEW(views[viewPlanBCode]);
+  views[viewPlanBCode].x := 1.0; 
+  views[viewPlanBCode].height := 24.0; 
+  views[viewPlanBCode].y := height - 3.0*views[viewPlanBCode].height - 1.0 - 2.0*dBtn; 
+  views[viewPlanBCode].width := views[viewTotalCode].width;  
+  views[viewPlanBCode].bgColor := 255H; 
+  views[viewPlanBCode].txtColor := 0H; 
+  views[viewPlanBCode].overBgColor := greenColor;
+  views[viewPlanBCode].ClickProc := InputProductCount; 
+  views[viewPlanBCode].UpdateProc := UpdateProductView;
+  views[viewPlanBCode].model := products[viewPlanBCode]; 
+  views[viewPlanBCode].ViewProc := DrawTextView; 
   (* добавляем как слушатель *)
   NEW(node);
-  node.rec := views[viewProductBCode];
+  node.rec := views[viewPlanBCode];
   products[productBCode].listeners.next := node; 
  
   (* Продукт C *) 
-  NEW(views[viewProductCCode]);
-  views[viewProductCCode].x := 1.0; 
-  views[viewProductCCode].height := 24.0; 
-  views[viewProductCCode].y := height - 4.0*views[viewProductBCode].height - 1.0 - 3.0*dBtn; 
-  views[viewProductCCode].width := views[viewTotalCode].width;     
-  views[viewProductCCode].bgColor := 255H; 
-  views[viewProductCCode].txtColor := 0H; 
-  views[viewProductCCode].overBgColor := greenColor;
-  views[viewProductCCode].ClickProc := InputProductCount; 
-  views[viewProductCCode].UpdateProc := UpdateProductView;
-  views[viewProductCCode].model := products[viewProductCCode]; 
-  views[viewProductCCode].ViewProc := DrawTextView;  
+  NEW(views[viewPlanCCode]);
+  views[viewPlanCCode].x := 1.0; 
+  views[viewPlanCCode].height := 24.0; 
+  views[viewPlanCCode].y := height - 4.0*views[viewPlanCCode].height - 1.0 - 3.0*dBtn; 
+  views[viewPlanCCode].width := views[viewTotalCode].width;     
+  views[viewPlanCCode].bgColor := 255H; 
+  views[viewPlanCCode].txtColor := 0H; 
+  views[viewPlanCCode].overBgColor := greenColor;
+  views[viewPlanCCode].ClickProc := InputProductCount; 
+  views[viewPlanCCode].UpdateProc := UpdateProductView;
+  views[viewPlanCCode].model := products[viewPlanCCode]; 
+  views[viewPlanCCode].ViewProc := DrawTextView;  
   (* добавляем как слушатель *)
   NEW(node);
-  node.rec := views[viewProductCCode];
+  node.rec := views[viewPlanCCode];
   products[productCCode].listeners.next := node;    
  
   (* отображение графиков запасов *)
