@@ -23,11 +23,15 @@ CONST
   viewProductBCode = 1;
   viewProductCCode = 2;
   viewStoreGraphicsCode = 5;
+  viewStoreCode = 6;
+  viewStoreLabelCode = 7;
+  viewPlanLabelCode = 8;
 
   maxTotalPlanTime = 480.0; (* минут за смену *)
   maxTurn = 100; (* максимальное количество смен за игру *)
 
   storeGraphHeight = 300.0; (* высота графика запасов *)
+  yLabels = 326.0; (* высота надписей таблиц *)
   
   (* все единицы измерения времени в минутах *)
 TYPE 
@@ -70,7 +74,7 @@ TYPE
 
 VAR 
   products : ARRAY productsCount OF Product;
-  views : ARRAY (productsCount + 3) OF View;
+  views : ARRAY (productsCount + 6) OF View;
   totalPlanTime : REAL; (* всего необходимо минут на плановое количество *)
   nTurn  : INTEGER; (* номер хода *)
   viewsForUpdate : Node;  (* список вьюх. которые надо обновить перед отрисовкой *)
@@ -305,11 +309,12 @@ BEGIN
   END; 
 END UpdateTotalTimeLabel;
 
-(* процедура обновления информации о товаре *)
-PROCEDURE UpdateProductLabel(VAR label : ARRAY OF CHAR; p : Product);
-VAR str, strInt : ARRAY 100 OF CHAR; i : INTEGER;
+(* процедура обновления вьюшки о товаре *)
+PROCEDURE UpdateProductView (view : View);
+VAR label, str, strInt : ARRAY 100 OF CHAR; p : Product; i : INTEGER;
 BEGIN  
-  str := "по "; 
+  p := view.model;
+  str := ""; 
   Strings.Join(str, p.name);  
   Strings.Join(str, ": ");
   strInt := "";
@@ -323,15 +328,7 @@ BEGIN
   FOR i := 0 TO LEN(str)-1 DO 
     label[i] := str[i];
   END; 
-  
-END UpdateProductLabel;
-
-(* процедура обновления вьюшки о товаре *)
-PROCEDURE UpdateProductView (view : View);
-VAR str : ARRAY 100 OF CHAR; 
-BEGIN    
-  UpdateProductLabel(str, view.model);
-  view.label := str;  
+  view.label := label;  
 END UpdateProductView; 
 
 (* процедура обновления вьюшки Итого *)
@@ -424,6 +421,45 @@ VAR
   node : Node;
   i : INTEGER;
 BEGIN
+  (* Надпись "План" *)
+  NEW(views[viewPlanLabelCode]); 
+  views[viewPlanLabelCode].x := 1.0; 
+  views[viewPlanLabelCode].height := 24.0; 
+  views[viewPlanLabelCode].y := yLabels;
+  views[viewPlanLabelCode].width := 100.0;  
+  views[viewPlanLabelCode].bgColor := 255H; 
+  views[viewPlanLabelCode].txtColor := 0H; 
+  views[viewPlanLabelCode].overBgColor := 255H; 
+  views[viewPlanLabelCode].label := "План:";
+  views[viewPlanLabelCode].UpdateProc := NIL;
+  views[viewPlanLabelCode].ViewProc := DrawTextView;   
+ 
+  (* Надпись "Запасы" *)
+  NEW(views[viewStoreLabelCode]); 
+  views[viewStoreLabelCode].x := 140.0; 
+  views[viewStoreLabelCode].height := 24.0; 
+  views[viewStoreLabelCode].y := yLabels;
+  views[viewStoreLabelCode].width := 100.0;  
+  views[viewStoreLabelCode].bgColor := 255H; 
+  views[viewStoreLabelCode].txtColor := 0H; 
+  views[viewStoreLabelCode].overBgColor := 255H; 
+  views[viewStoreLabelCode].label := "Запасы:";
+  views[viewStoreLabelCode].UpdateProc := NIL;
+  views[viewStoreLabelCode].ViewProc := DrawTextView;  
+  
+  (* запасы на начало дня*) 
+ (*
+  NEW(views[viewTotalCode]);
+  views[viewTotalCode].x := 1.0; 
+  views[viewTotalCode].height := 24.0; 
+  views[viewTotalCode].y := height - views[viewTotalCode].height - 1.0; 
+  views[viewTotalCode].width := 250.0;  
+  views[viewTotalCode].bgColor := 255H; 
+  views[viewTotalCode].txtColor := 0H; 
+  views[viewTotalCode].overBgColor := 255H; 
+  views[viewTotalCode].UpdateProc := UpdateTotalView;
+  views[viewTotalCode].ViewProc := DrawTextView;  
+  *)
   (* Всего минут *)
   NEW(views[viewTotalCode]);
   views[viewTotalCode].x := 1.0; 
@@ -556,7 +592,9 @@ BEGIN
   END;    
   D.SetBackground(255H); 
   FOR i := 0 TO LEN(views) - 1 DO
-    views[i].ViewProc(views[i]);  
+    IF (views[i] # NIL) & (views[i].ViewProc # NIL) THEN 
+      views[i].ViewProc(views[i]);  
+    END;
   END;  
 END Plot;
 
