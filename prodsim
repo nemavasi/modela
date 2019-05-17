@@ -4,7 +4,7 @@ IMPORT Log, D := Draw, JS, Strings, Math;
 
 CONST 
  
-  dBtn = 10.0; (* расстояние между кнопками *) 
+  dBtn = 5.0; (* расстояние между кнопками *) 
   width = 401.0; height = 501.0; (* размеры холста *)
   greenColor = 0FFCCFFAAH;
   
@@ -29,14 +29,19 @@ CONST
   viewStoreACode = 9;
   viewStoreBCode = 10;
   viewStoreCCode = 11;
+  viewWorkLabelCode = 12;
+  viewWorkACode = 13;
+  viewWorkBCode = 14;
+  viewWorkCCode = 15;
 
-  viewsCount = 12;
+  viewsCount = 16;
 
   maxTotalPlanTime = 480.0; (* минут за смену *)
   maxTurn = 100; (* максимальное количество смен за игру *)
 
   storeGraphHeight = 300.0; (* высота графика запасов *)
   yLabels = 326.0; (* высота надписей таблиц *)
+  yTable = 360.0; (* высота надписей таблиц *)
   
   (* все единицы измерения времени в минутах *)
 TYPE 
@@ -152,7 +157,7 @@ PROCEDURE InitData*;
 BEGIN
   nTurn := 0;
   NEW(products[productACode]);
-  products[productACode].name := "P3"; 
+  products[productACode].name := "P1"; 
   products[productACode].workTime := 3.0; 
   products[productACode].changeoverTime := 60.0; 
   products[productACode].plan := 0.0; 
@@ -172,7 +177,7 @@ BEGIN
   products[productBCode].color := 0FF00FF00H;
  
   NEW(products[productCCode]);
-  products[productCCode].name := "P1";
+  products[productCCode].name := "P3";
   products[productCCode].workTime := 4.0; 
   products[productCCode].changeoverTime := 120.0; 
   products[productCCode].plan := 0.0; 
@@ -327,11 +332,6 @@ BEGIN
   Strings.Join(str, " ");
   Strings.Join(str, strInt);
   Strings.Join(str, " шт."); 
-  (*, (склад: ");
-  Strings.IntToString(FLOOR(p.stock), strInt);
-  Strings.Join(str, strInt);
-  Strings.Join(str, " шт.)");   
-  *)
   FOR i := 0 TO LEN(str)-1 DO 
     label[i] := str[i];
   END; 
@@ -351,7 +351,34 @@ BEGIN
     label[i] := str[i];
   END; 
   view.label := label;  
-END UpdateStoreView; 
+END UpdateStoreView;
+
+(* процедура обновления вьюшки о времени обработки изделия *)
+PROCEDURE UpdateWorkView (view : View);
+VAR label, str, strInt : ARRAY 100 OF CHAR; p : Product; i : INTEGER;
+    total : REAL;
+BEGIN  
+  p := view.model;
+  str := "";
+  Strings.IntToString(FLOOR(p.changeoverTime), strInt);
+  Strings.Join(str, strInt);
+  Strings.Join(str, " / "); 
+  Strings.IntToString(FLOOR(p.workTime), strInt);
+  Strings.Join(str, strInt);
+  Strings.Join(str, " / ");
+  IF p.plan > 0.0 THEN
+    total := p.workTime * p.plan + p.changeoverTime
+  ELSE
+    total := 0.0
+  END;
+  Strings.IntToString(FLOOR(total), strInt);
+  Strings.Join(str, strInt);
+  Strings.Join(str, " мин.");     
+  FOR i := 0 TO LEN(str)-1 DO 
+    label[i] := str[i];
+  END; 
+  view.label := label;  
+END UpdateWorkView; 
 
 (* процедура обновления вьюшки Итого *)
 PROCEDURE UpdateTotalView (view : View);
@@ -400,7 +427,7 @@ PROCEDURE DrawTextView (view : View); (* рисуем текстовую вью�
 BEGIN
   DrawView(view);
   IF LEN(view.label) > 0 THEN 
-    D.Stringi(view.label, FLOOR(view.x) + 17, FLOOR(view.y + view.height) - 6, 16);  
+    D.Stringi(view.label, FLOOR(view.x) + 8, FLOOR(view.y + view.height) - 6, 16);  
   END;
 END DrawTextView; 
 
@@ -448,7 +475,7 @@ BEGIN
   views[viewPlanLabelCode].x := 1.0; 
   views[viewPlanLabelCode].height := 24.0; 
   views[viewPlanLabelCode].y := yLabels;
-  views[viewPlanLabelCode].width := 120.0;  
+  views[viewPlanLabelCode].width := 100.0;  
   views[viewPlanLabelCode].bgColor := 255H; 
   views[viewPlanLabelCode].txtColor := 0H; 
   views[viewPlanLabelCode].overBgColor := 255H; 
@@ -458,30 +485,30 @@ BEGIN
  
   (* Надпись "Запасы" *)
   NEW(views[viewStoreLabelCode]); 
-  views[viewStoreLabelCode].x := 140.0; 
+  views[viewStoreLabelCode].x := 110.0; 
   views[viewStoreLabelCode].height := 24.0; 
   views[viewStoreLabelCode].y := yLabels;
-  views[viewStoreLabelCode].width := 100.0;  
+  views[viewStoreLabelCode].width := 80.0;  
   views[viewStoreLabelCode].bgColor := 255H; 
   views[viewStoreLabelCode].txtColor := 0H; 
   views[viewStoreLabelCode].overBgColor := 255H; 
   views[viewStoreLabelCode].label := "Запасы:";
   views[viewStoreLabelCode].UpdateProc := NIL;
   views[viewStoreLabelCode].ViewProc := DrawTextView;  
-  
-  (* запасы на начало дня*) 
- (*
-  NEW(views[viewTotalCode]);
-  views[viewTotalCode].x := 1.0; 
-  views[viewTotalCode].height := 24.0; 
-  views[viewTotalCode].y := height - views[viewTotalCode].height - 1.0; 
-  views[viewTotalCode].width := 250.0;  
-  views[viewTotalCode].bgColor := 255H; 
-  views[viewTotalCode].txtColor := 0H; 
-  views[viewTotalCode].overBgColor := 255H; 
-  views[viewTotalCode].UpdateProc := UpdateTotalView;
-  views[viewTotalCode].ViewProc := DrawTextView;  
-  *)
+ 
+  (* Надпись "обработка ед/всего" *)
+  NEW(views[viewWorkLabelCode]); 
+  views[viewWorkLabelCode].x := 200.0; 
+  views[viewWorkLabelCode].height := 24.0; 
+  views[viewWorkLabelCode].y := yLabels;
+  views[viewWorkLabelCode].width := 200.0;  
+  views[viewWorkLabelCode].bgColor := 255H; 
+  views[viewWorkLabelCode].txtColor := 0H; 
+  views[viewWorkLabelCode].overBgColor := 255H; 
+  views[viewWorkLabelCode].label := "Настр./обраб. ед./всего:";
+  views[viewWorkLabelCode].UpdateProc := NIL;
+  views[viewWorkLabelCode].ViewProc := DrawTextView;   
+
   (* Всего минут *)
   NEW(views[viewTotalCode]);
   views[viewTotalCode].x := 1.0; 
@@ -517,7 +544,7 @@ BEGIN
   NEW(views[viewPlanACode]);
   views[viewPlanACode].x := 1.0; 
   views[viewPlanACode].height := 24.0; 
-  views[viewPlanACode].y := height - 2.0*views[viewPlanACode].height - 1.0 - dBtn; 
+  views[viewPlanACode].y := yTable; 
   views[viewPlanACode].width := views[viewPlanLabelCode].width;   
   views[viewPlanACode].bgColor := 255H; 
   views[viewPlanACode].txtColor := 0H; 
@@ -545,12 +572,28 @@ BEGIN
   NEW(node); (* добавляем как слушатель *)
   node.rec := views[viewStoreACode];
   products[productACode].listeners.next.next := node; 
+  (* Обработка *)  
+  NEW(views[viewWorkACode]);
+  views[viewWorkACode].x := views[viewWorkLabelCode].x; 
+  views[viewWorkACode].height := 24.0; 
+  views[viewWorkACode].y := views[viewPlanACode].y;  
+  views[viewWorkACode].width := views[viewWorkLabelCode].width;   
+  views[viewWorkACode].bgColor := 255H; 
+  views[viewWorkACode].txtColor := 0H; 
+  views[viewWorkACode].overBgColor := 255H; 
+  views[viewWorkACode].ClickProc := NIL; 
+  views[viewWorkACode].UpdateProc := UpdateWorkView;
+  views[viewWorkACode].model := products[productACode]; 
+  views[viewWorkACode].ViewProc := DrawTextView;   
+  NEW(node); (* добавляем как слушатель *)
+  node.rec := views[viewWorkACode];
+  products[productACode].listeners.next.next.next := node;  
  
   (* Продукт B *) 
   NEW(views[viewPlanBCode]);
   views[viewPlanBCode].x := 1.0; 
   views[viewPlanBCode].height := 24.0; 
-  views[viewPlanBCode].y := height - 3.0*views[viewPlanBCode].height - 1.0 - 2.0*dBtn; 
+  views[viewPlanBCode].y := yTable + views[viewStoreACode].height + dBtn; 
   views[viewPlanBCode].width := views[viewPlanLabelCode].width;  
   views[viewPlanBCode].bgColor := 255H; 
   views[viewPlanBCode].txtColor := 0H; 
@@ -579,12 +622,28 @@ BEGIN
   NEW(node); (* добавляем как слушатель *)
   node.rec := views[viewStoreBCode];
   products[productBCode].listeners.next.next := node;  
+  (* Обработка *)  
+  NEW(views[viewWorkBCode]);
+  views[viewWorkBCode].x := views[viewWorkLabelCode].x; 
+  views[viewWorkBCode].height := 24.0; 
+  views[viewWorkBCode].y := views[viewPlanBCode].y;  
+  views[viewWorkBCode].width := views[viewWorkLabelCode].width;   
+  views[viewWorkBCode].bgColor := 255H; 
+  views[viewWorkBCode].txtColor := 0H; 
+  views[viewWorkBCode].overBgColor := 255H; 
+  views[viewWorkBCode].ClickProc := NIL; 
+  views[viewWorkBCode].UpdateProc := UpdateWorkView;
+  views[viewWorkBCode].model := products[productBCode]; 
+  views[viewWorkBCode].ViewProc := DrawTextView;   
+  NEW(node); (* добавляем как слушатель *)
+  node.rec := views[viewWorkBCode];
+  products[productBCode].listeners.next.next.next := node;   
  
   (* Продукт C *) 
   NEW(views[viewPlanCCode]);
   views[viewPlanCCode].x := 1.0; 
   views[viewPlanCCode].height := 24.0; 
-  views[viewPlanCCode].y := height - 4.0*views[viewPlanCCode].height - 1.0 - 3.0*dBtn; 
+  views[viewPlanCCode].y := yTable + 2.0 * views[viewStoreACode].height + 2.0 * dBtn;
   views[viewPlanCCode].width := views[viewPlanLabelCode].width;     
   views[viewPlanCCode].bgColor := 255H; 
   views[viewPlanCCode].txtColor := 0H; 
@@ -611,7 +670,23 @@ BEGIN
   views[viewStoreCCode].ViewProc := DrawTextView;   
   NEW(node); (* добавляем как слушатель *)
   node.rec := views[viewStoreCCode];
-  products[productCCode].listeners.next.next := node;   
+  products[productCCode].listeners.next.next := node;
+  (* Обработка *)  
+  NEW(views[viewWorkCCode]);
+  views[viewWorkCCode].x := views[viewWorkLabelCode].x; 
+  views[viewWorkCCode].height := 24.0; 
+  views[viewWorkCCode].y := views[viewPlanCCode].y;  
+  views[viewWorkCCode].width := views[viewWorkLabelCode].width;   
+  views[viewWorkCCode].bgColor := 255H; 
+  views[viewWorkCCode].txtColor := 0H; 
+  views[viewWorkCCode].overBgColor := 255H; 
+  views[viewWorkCCode].ClickProc := NIL; 
+  views[viewWorkCCode].UpdateProc := UpdateWorkView;
+  views[viewWorkCCode].model := products[productCCode]; 
+  views[viewWorkCCode].ViewProc := DrawTextView;   
+  NEW(node); (* добавляем как слушатель *)
+  node.rec := views[viewWorkCCode];
+  products[productCCode].listeners.next.next.next := node;    
  
   (* отображение графиков запасов *)
   NEW(views[viewStoreGraphicsCode]);
